@@ -2,10 +2,10 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>edu.neu.mgen</groupId>
-  <artifactId>java_project</artifactId>
+  <artifactId>java_projects</artifactId>
   <packaging>jar</packaging>
   <version>1.0-SNAPSHOT</version>
-  <name>java_project</name>
+  <name>java_projects</name>
   <url>http://maven.apache.org</url>
   <dependencies>
     <dependency>
