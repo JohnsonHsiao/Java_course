@@ -1,0 +1,2 @@
+This is my Java read test
+Java write test
