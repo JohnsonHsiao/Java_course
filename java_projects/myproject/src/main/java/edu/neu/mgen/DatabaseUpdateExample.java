@@ -7,7 +7,7 @@ public class DatabaseUpdateExample {
         // information for the database connection
         String jdbcURL = "jdbc:mysql://localhost:3306/mydatabase"; 
         String username = "root"; 
-        String password = "John@611030"; // password for the database
+        String password = "empty"; // password for the database
 
         Connection connection = null;
 
