@@ -2,119 +2,94 @@ package edu.neu.mgen;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.event.*;
 import java.io.*;
-import java.net.Socket;
+import java.net.*;
 
 public class ChatClient {
-    private JFrame frame;
-    private JTextArea chatArea;
-    private JTextField inputField;
-    private PrintWriter out;
+    private static JFrame frame;
+    private static JTextArea chatArea;
+    private static JTextField messageField;
+    private static PrintWriter out;
+    private static BufferedReader in;
 
-    public ChatClient() {
-        loginOrSignUp();
-    }
-
-    private void loginOrSignUp() {
-        frame = new JFrame("Login / Sign Up");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(300, 150);
-        frame.setLayout(new GridLayout(5, 2));
-
-        JLabel userLabel = new JLabel("Username:");
-        JTextField userField = new JTextField();
-        JLabel passLabel = new JLabel("Password:");
-        JPasswordField passField = new JPasswordField();
-
-        JButton loginButton = new JButton("Login");
-        JButton signUpButton = new JButton("Sign Up");
-        JButton logoutButton = new JButton("Logout");
-
-        loginButton.addActionListener(e -> {
-            String username = userField.getText();
-            String password = new String(passField.getPassword());
-            if (ChatApplication.users.containsKey(username) && ChatApplication.users.get(username).equals(password)) {
-                frame.dispose();
-                startChat();
-            } else {
-                JOptionPane.showMessageDialog(frame, "Invalid login credentials", "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        });
-
-        signUpButton.addActionListener(e -> {
-            String username = userField.getText();
-            String password = new String(passField.getPassword());
-            if (!ChatApplication.users.containsKey(username)) {
-                ChatApplication.users.put(username, password);
-                JOptionPane.showMessageDialog(frame, "Sign-up successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                JOptionPane.showMessageDialog(frame, "User already exists", "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        });
-
-        logoutButton.addActionListener(e -> {
-            frame.dispose();
-            loginOrSignUp();
-        });
-
-        frame.add(userLabel);
-        frame.add(userField);
-        frame.add(passLabel);
-        frame.add(passField);
-        frame.add(loginButton);
-        frame.add(signUpButton);
-        frame.add(new JLabel());
-        frame.add(logoutButton);
-
-        frame.setVisible(true);
-    }
-
-    private void startChat() {
-        frame = new JFrame("Chat Window");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(400, 400);
-        frame.setLayout(new BorderLayout());
-
-        chatArea = new JTextArea();
-        chatArea.setEditable(false);
-        frame.add(new JScrollPane(chatArea), BorderLayout.CENTER);
-
-        inputField = new JTextField();
-        frame.add(inputField, BorderLayout.SOUTH);
-
-        inputField.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String message = inputField.getText();
-                if (out != null) {
-                    out.println(message);
-                }
-                inputField.setText("");
-            }
-        });
-
-        frame.setVisible(true);
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(ChatClient::createAndShowGUI);
 
         try {
-            Socket socket = new Socket("localhost", 12345);
+            Socket socket = new Socket("localhost", 59001);
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
+            // Handle login or registration
+            while (true) {
+                String[] options = {"Login", "Register"};
+                int choice = JOptionPane.showOptionDialog(frame, "Choose an option:", "Login/Register",
+                        JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, options, options[0]);
+
+                String username = JOptionPane.showInputDialog(frame, "Enter username:", "Login/Register", JOptionPane.PLAIN_MESSAGE);
+                String password = JOptionPane.showInputDialog(frame, "Enter password:", "Login/Register", JOptionPane.PLAIN_MESSAGE);
+
+                if (choice == 0) { // Login
+                    out.println("LOGIN");
+                } else { // Register
+                    out.println("REGISTER");
+                }
+
+                out.println(username);
+                out.println(password);
+
+                String response = in.readLine();
+                if ("LOGINSUCCESS".equals(response) || "REGISTRATIONSUCCESS".equals(response)) {
+                    break;
+                } else {
+                    JOptionPane.showMessageDialog(frame, "Invalid credentials or username already exists. Please try again.", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+
+            // Read messages from the server
             new Thread(() -> {
-                String response;
                 try {
-                    while ((response = in.readLine()) != null) {
-                        chatArea.append(response + "\n");
+                    String message;
+                    while ((message = in.readLine()) != null) {
+                        chatArea.append(message + "\n");
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }).start();
-
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private static void createAndShowGUI() {
+        frame = new JFrame("Chat Client");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(400, 400);
+
+        chatArea = new JTextArea();
+        chatArea.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(chatArea);
+
+        messageField = new JTextField(25);
+        JButton sendButton = new JButton("Send");
+
+        sendButton.addActionListener(e -> {
+            String message = messageField.getText();
+            if (!message.isEmpty()) {
+                out.println(message);
+                messageField.setText("");
+            }
+        });
+
+        JPanel inputPanel = new JPanel();
+        inputPanel.add(messageField);
+        inputPanel.add(sendButton);
+
+        frame.add(scrollPane, BorderLayout.CENTER);
+        frame.add(inputPanel, BorderLayout.SOUTH);
+
+        frame.setVisible(true);
     }
 }

@@ -1,70 +1,95 @@
 package edu.neu.mgen;
 
 import java.io.*;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.net.*;
+import java.util.*;
 
 public class ChatServer {
-    static CopyOnWriteArrayList<ClientHandler> clients = new CopyOnWriteArrayList<>();
+    private static Set<PrintWriter> clientWriters = new HashSet<>();
+    private static HashMap<String, String> users = new HashMap<>(); // Stores usernames and passwords
 
-    public static void main(String[] args) {
-        new ChatServer();
-    }
+    public static void main(String[] args) throws IOException {
+        System.out.println("Chat server started...");
+        ServerSocket serverSocket = new ServerSocket(59001);
 
-    public ChatServer() {
-        try (ServerSocket serverSocket = new ServerSocket(12345)) {
-            System.out.println("Server started...");
+        try {
             while (true) {
-                Socket clientSocket = serverSocket.accept();
-                ClientHandler clientHandler = new ClientHandler(clientSocket);
-                clients.add(clientHandler);
-                new Thread(clientHandler).start();
+                new ClientHandler(serverSocket.accept()).start();
             }
-        } catch (IOException e) {
-            e.printStackTrace();
+        } finally {
+            serverSocket.close();
         }
     }
 
-    static class ClientHandler implements Runnable {
+    private static class ClientHandler extends Thread {
         private Socket socket;
-        private BufferedReader in;
         private PrintWriter out;
+        private String username;
 
         public ClientHandler(Socket socket) {
             this.socket = socket;
-            try {
-                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                out = new PrintWriter(socket.getOutputStream(), true);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
         }
 
-        @Override
         public void run() {
             try {
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                out = new PrintWriter(socket.getOutputStream(), true);
+
+                // Handle login or registration
+                while (true) {
+                    String action = in.readLine();
+                    username = in.readLine();
+                    String password = in.readLine();
+
+                    synchronized (users) {
+                        if ("REGISTER".equals(action)) {
+                            if (!users.containsKey(username)) {
+                                users.put(username, password);
+                                out.println("REGISTRATIONSUCCESS");
+                                break;
+                            } else {
+                                out.println("INVALID");
+                            }
+                        } else if ("LOGIN".equals(action)) {
+                            if (users.containsKey(username) && users.get(username).equals(password)) {
+                                out.println("LOGINSUCCESS");
+                                break;
+                            } else {
+                                out.println("INVALID");
+                            }
+                        }
+                    }
+                }
+
+                out.println("WELCOME " + username);
+                System.out.println(username + " has connected.");
+
+                synchronized (clientWriters) {
+                    clientWriters.add(out);
+                }
+
                 String message;
                 while ((message = in.readLine()) != null) {
                     System.out.println("Received: " + message);
-                    broadcastMessage(message);
+                    for (PrintWriter writer : clientWriters) {
+                        writer.println(username + ": " + message);
+                    }
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                System.out.println("Error handling client: " + e.getMessage());
             } finally {
+                if (out != null) {
+                    synchronized (clientWriters) {
+                        clientWriters.remove(out);
+                    }
+                }
+                if (username != null) {
+                    System.out.println(username + " has disconnected.");
+                }
                 try {
                     socket.close();
-                    clients.remove(this);
                 } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-
-        private void broadcastMessage(String message) {
-            for (ClientHandler client : clients) {
-                if (client != this) {
-                    client.out.println(message);
+                    System.out.println("Error closing client socket: " + e.getMessage());
                 }
             }
         }
